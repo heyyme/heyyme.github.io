@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<title>Grid Selection - Ratio Calculation</title>
+<title>Grid Selection - Clean UI</title>
 <style>
 body {
   margin:0; background:#111; display:flex; align-items:center; justify-content:center;
@@ -14,14 +14,15 @@ body {
 .cell { position: absolute; border: 1px solid rgba(255,255,255,0.1); box-sizing: border-box; }
 #ui {
   position:fixed; top:16px; left:16px; background:rgba(0,0,0,0.85);
-  padding:15px; border-radius:8px; font-size:13px; z-index: 100; min-width: 200px;
+  padding:15px; border-radius:8px; font-size:13px; z-index: 100; min-width: 180px;
 }
 .groupRow { 
   cursor:pointer; padding:10px; margin: 4px 0; border-radius: 6px; 
   display: flex; align-items: center; border: 1px solid transparent;
 }
 .groupRow.active { background:#333; border-color: #666; font-weight: bold; }
-.colorBox { width: 14px; height: 14px; margin-right: 8px; border-radius: 2px; }
+.colorBox { width: 14px; height: 14px; margin-right: 10px; border-radius: 3px; border: 1px solid rgba(255,255,255,0.3); }
+.layerName { color: #eee; }
 .countInfo { margin-left: auto; text-align: right; font-family: monospace; }
 .countNum { font-size: 14px; color: #ffcc00; display: block; }
 .ratioNum { font-size: 11px; color: #aaa; }
@@ -69,7 +70,6 @@ const rainbow = [
  'rgba(255,0,0,0.7)', 'rgba(255,127,0,0.7)', 'rgba(255,255,0,0.7)',
  'rgba(0,255,0,0.7)', 'rgba(0,0,255,0.7)', 'rgba(75,0,130,0.7)', 'rgba(148,0,211,0.7)'
 ];
-const colorNames = ['빨','주','노','초','파','남','보'];
 let groupCount = 0, currentGroup = 0;
 
 function addGroup() {
@@ -80,9 +80,10 @@ function addGroup() {
   row.className = 'groupRow';
   row.id = 'group-' + groupCount;
   
+  // '빨 레이어' 대신 '레이어' 글자만 표시하도록 수정
   row.innerHTML = `
     <div class="colorBox" style="background:${rainbow[(groupCount-1)%7]}"></div>
-    <span class="layerName">${colorNames[(groupCount-1)%7]} 레이어</span>
+    <span class="layerName">레이어</span>
     <div class="countInfo">
       <span class="countNum" id="count-${groupCount}">0</span>
       <span class="ratioNum" id="ratio-${groupCount}">0.00</span>
@@ -186,19 +187,16 @@ function updateStats(){
     }
   });
 
-  // 미선택(여백) 계산 및 비율 표시
   const unselected = total - selectedTotal;
   document.getElementById('unselectedCount').textContent = unselected;
-  document.getElementById('unselectedRatio').textContent = (unselected / total).toFixed(2);
+  document.getElementById('unselectedRatio').textContent = total > 0 ? (unselected / total).toFixed(2) : "1.00";
 
-  // 각 레이어별 개수와 비율 표시
   for(let i=1; i<=groupCount; i++){
     const countSpan = document.getElementById('count-' + i);
     const ratioSpan = document.getElementById('ratio-' + i);
     if(countSpan && ratioSpan) {
       const count = counts[i] || 0;
       countSpan.textContent = count;
-      // 비율 계산 (소수점 2자리까지)
       ratioSpan.textContent = total > 0 ? (count / total).toFixed(2) : "0.00";
     }
   }
