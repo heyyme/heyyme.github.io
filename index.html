@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Upload</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Helvetica Neue', Helvetica, sans-serif;
+      background: #111;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    #bg-layer {
+      position: fixed;
+      inset: 0;
+      background: url('./background.png') center / cover no-repeat;
+      z-index: 0;
+    }
+
+    #bg-image {
+      position: fixed;
+      inset: 0;
+      background-size: cover;
+      background-position: center;
+      opacity: 0;
+      transition: opacity 0.8s ease;
+      z-index: 1;
+    }
+
+    #bg-image.visible { opacity: 1; }
+
+    #bg-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      opacity: 0;
+      transition: opacity 0.8s ease;
+      z-index: 2;
+    }
+
+    #bg-overlay.visible { opacity: 1; }
+
+    #content {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 28px;
+      padding: 40px 24px;
+    }
+
+    .canvas-wrapper {
+      position: relative;
+      width: 420px;
+      max-width: calc(100vw - 48px);
+    }
+
+    .canvas-wrapper::before {
+      content: '';
+      display: block;
+      padding-top: 100%;
+    }
+
+    .drop-zone {
+      position: absolute;
+      inset: 0;
+      background: rgba(255,255,255,0.96);
+      border-radius: 4px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      cursor: pointer;
+      border: 2px dashed rgba(0,0,0,0.12);
+      overflow: hidden;
+      transition: background 0.2s, border 0.2s, transform 0.15s;
+    }
+
+    .drop-zone.drag-over {
+      background: #fff;
+      border: 2px dashed rgba(80,80,200,0.4);
+      transform: scale(1.01);
+    }
+
+    .drop-zone.has-image {
+      border: 2px solid transparent;
+    }
+
+    .preview-img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 2px;
+      display: none;
+    }
+
+    .preview-img.visible { display: block; }
+
+    .drop-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      transition: opacity 0.3s;
+      z-index: 2;
+    }
+
+    .drop-content.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .upload-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: rgba(0,0,0,0.06);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .upload-icon svg {
+      width: 22px;
+      height: 22px;
+      stroke: rgba(0,0,0,0.4);
+      fill: none;
+      stroke-width: 1.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .drop-title {
+      font-size: 14px;
+      font-weight: 500;
+      color: rgba(0,0,0,0.7);
+      letter-spacing: 0.01em;
+    }
+
+    .drop-sub {
+      font-size: 12px;
+      color: rgba(0,0,0,0.35);
+      text-align: center;
+      line-height: 1.6;
+    }
+
+    .browse-btn {
+      margin-top: 4px;
+      padding: 8px 20px;
+      background: rgba(0,0,0,0.08);
+      border: none;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 500;
+      color: rgba(0,0,0,0.6);
+      cursor: pointer;
+      letter-spacing: 0.03em;
+      font-family: inherit;
+      transition: background 0.15s;
+    }
+
+    .browse-btn:hover { background: rgba(0,0,0,0.13); }
+
+    .image-overlay-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 12px 16px;
+      background: rgba(0,0,0,0.55);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 3;
+      opacity: 0;
+      transition: opacity 0.25s;
+    }
+
+    .drop-zone.has-image:hover .image-overlay-bar { opacity: 1; }
+
+    .img-name {
+      font-size: 11px;
+      color: rgba(255,255,255,0.75);
+      letter-spacing: 0.02em;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 200px;
+    }
+
+    .remove-btn {
+      font-size: 11px;
+      color: rgba(255,120,100,0.9);
+      cursor: pointer;
+      background: none;
+      border: none;
+      font-family: inherit;
+      font-weight: 500;
+      letter-spacing: 0.03em;
+      padding: 0;
+    }
+
+    .remove-btn:hover { color: rgba(255,80,60,1); }
+
+    .error-msg {
+      font-size: 12px;
+      color: rgba(255,100,80,0.9);
+      letter-spacing: 0.02em;
+      height: 16px;
+      text-align: center;
+    }
+
+    .bottom-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn-next {
+      padding: 10px 32px;
+      border-radius: 24px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      letter-spacing: 0.04em;
+      border: none;
+      font-family: inherit;
+      background: #fff;
+      color: #1a1a1a;
+      opacity: 0.35;
+      pointer-events: none;
+      transition: opacity 0.3s, transform 0.1s;
+    }
+
+    .btn-next.enabled {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .btn-next:active { transform: scale(0.97); }
+
+    .file-format-hint {
+      font-size: 11px;
+      color: rgba(255,255,255, 0.8);
+      letter-spacing: 0.07em;
+    }
+
+    input[type="file"] { display: none; }
+  </style>
+</head>
+<body>
+
+  <div id="bg-layer"></div>
+  <div id="bg-image"></div>
+  <div id="bg-overlay"></div>
+
+  <div id="content">
+    <div class="canvas-wrapper">
+      <div class="drop-zone" id="dropZone">
+        <img class="preview-img" id="previewImg" alt="preview" />
+
+        <div class="drop-content" id="dropContent">
+          <div class="upload-icon">
+            <svg viewBox="0 0 24 24">
+              <polyline points="16 16 12 12 8 16"></polyline>
+              <line x1="12" y1="12" x2="12" y2="21"></line>
+              <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"></path>
+            </svg>
+          </div>
+          <span class="drop-title">이미지를 드래그하거나 업로드하세요</span>
+          <span class="drop-sub">배경으로 사용할 이미지를<br>이 영역에 올려주세요</span>
+          <button class="browse-btn" id="browseBtn">파일 선택</button>
+        </div>
+
+        <div class="image-overlay-bar" id="overlayBar">
+          <span class="img-name" id="imgName">—</span>
+          <button class="remove-btn" id="removeBtn">제거</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="error-msg" id="errorMsg"></div>
+
+    <div class="bottom-actions">
+      <button class="btn-next" id="nextBtn">Next</button>
+    </div>
+
+    <span class="file-format-hint">Only JPG · PNG</span>
+  </div>
+
+  <input type="file" id="fileInput" accept="image/jpeg,image/png" />
+
+  <script>
+    const dropZone    = document.getElementById('dropZone');
+    const dropContent = document.getElementById('dropContent');
+    const previewImg  = document.getElementById('previewImg');
+    const browseBtn   = document.getElementById('browseBtn');
+    const fileInput   = document.getElementById('fileInput');
+    const nextBtn     = document.getElementById('nextBtn');
+    const imgName     = document.getElementById('imgName');
+    const removeBtn   = document.getElementById('removeBtn');
+    const bgImage     = document.getElementById('bg-image');
+    const bgOverlay   = document.getElementById('bg-overlay');
+    const errorMsg    = document.getElementById('errorMsg');
+
+    const ALLOWED = ['image/jpeg', 'image/png'];
+
+    function showError(msg) {
+      errorMsg.textContent = msg;
+      clearTimeout(showError._t);
+      showError._t = setTimeout(() => { errorMsg.textContent = ''; }, 3000);
+    }
+
+    function loadImage(file) {
+      if (!file) return;
+      if (!ALLOWED.includes(file.type)) {
+        showError('JPG 또는 PNG 파일만 업로드할 수 있습니다.');
+        return;
+      }
+      const url = URL.createObjectURL(file);
+      previewImg.src = url;
+      previewImg.classList.add('visible');
+      dropContent.classList.add('hidden');
+      dropZone.classList.add('has-image');
+      nextBtn.classList.add('enabled');
+      imgName.textContent = file.name;
+      bgImage.style.backgroundImage = `url(${url})`;
+      bgImage.classList.add('visible');
+      bgOverlay.classList.add('visible');
+      errorMsg.textContent = '';
+    }
+
+    browseBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      fileInput.click();
+    });
+
+    dropZone.addEventListener('click', () => {
+      if (!dropZone.classList.contains('has-image')) fileInput.click();
+    });
+
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files[0]) loadImage(e.target.files[0]);
+    });
+
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('drag-over');
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('drag-over');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+      loadImage(e.dataTransfer.files[0]);
+    });
+
+    removeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      previewImg.src = '';
+      previewImg.classList.remove('visible');
+      dropContent.classList.remove('hidden');
+      dropZone.classList.remove('has-image');
+      nextBtn.classList.remove('enabled');
+      fileInput.value = '';
+      bgImage.classList.remove('visible');
+      bgOverlay.classList.remove('visible');
+      imgName.textContent = '—';
+    });
+
+    let currentImageData = null;
+
+function loadImage(file) {
+  if (!file) return;
+  if (!ALLOWED.includes(file.type)) {
+    showError('JPG 또는 PNG 파일만 업로드할 수 있습니다.');
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const base64 = e.target.result;
+    currentImageData = base64;
+
+    previewImg.src = base64;
+    previewImg.classList.add('visible');
+    dropContent.classList.add('hidden');
+    dropZone.classList.add('has-image');
+    nextBtn.classList.add('enabled');
+    imgName.textContent = file.name;
+
+    bgImage.style.backgroundImage = `url(${base64})`;
+    bgImage.classList.add('visible');
+    bgOverlay.classList.add('visible');
+    errorMsg.textContent = '';
+  };
+  reader.readAsDataURL(file);
+}
+
+nextBtn.addEventListener('click', () => {
+  if (nextBtn.classList.contains('enabled') && currentImageData) {
+    localStorage.setItem('uploadedImage', currentImageData);
+    window.location.href = 'page 2.html';
+  }
+});
+  </script>
+</body>
+</html>
