@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Grid Selection - Ratio Calculation</title>
+<style>
+body {
+  margin:0; background:#111; display:flex; align-items:center; justify-content:center;
+  height:100vh; overflow:hidden; color:white; font-family:sans-serif;
+}
+#container { position: relative; display: flex; align-items: center; justify-content: center; }
+#image { display: block; max-width: 90vw; max-height: 90vh; user-select: none; z-index: 1; }
+#grid { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 2; }
+.cell { position: absolute; border: 1px solid rgba(255,255,255,0.1); box-sizing: border-box; }
+#ui {
+  position:fixed; top:16px; left:16px; background:rgba(0,0,0,0.85);
+  padding:15px; border-radius:8px; font-size:13px; z-index: 100; min-width: 200px;
+}
+.groupRow { 
+  cursor:pointer; padding:10px; margin: 4px 0; border-radius: 6px; 
+  display: flex; align-items: center; border: 1px solid transparent;
+}
+.groupRow.active { background:#333; border-color: #666; font-weight: bold; }
+.colorBox { width: 14px; height: 14px; margin-right: 8px; border-radius: 2px; }
+.countInfo { margin-left: auto; text-align: right; font-family: monospace; }
+.countNum { font-size: 14px; color: #ffcc00; display: block; }
+.ratioNum { font-size: 11px; color: #aaa; }
+
+button { 
+  cursor: pointer; width: 100%; padding: 10px; margin-bottom: 12px; 
+  background: #444; color: white; border: none; border-radius: 4px; font-weight: bold;
+}
+button:hover { background: #555; }
+hr { border: 0; border-top: 1px solid #444; margin: 10px 0; }
+.summary { font-size: 12px; line-height: 1.6; color: #ddd; }
+</style>
+</head>
+<body>
+
+<div id="ui">
+  <button id="addGroup">＋ 색 레이어 추가</button>
+  <div id="groupList"></div>
+  <hr>
+  <div class="summary">
+    전체 셀: <span id="totalCount">0</span><br>
+    미선택(여백): <span id="unselectedCount">0</span> 
+    (<span id="unselectedRatio">0.00</span>)
+  </div>
+</div>
+
+<div id="container">
+  <img id="image" draggable="false">
+  <div id="grid"></div>
+</div>
+
+<script>
+const img = document.getElementById('image');
+const grid = document.getElementById('grid');
+const groupList = document.getElementById('groupList');
+
+img.src = localStorage.getItem('uploadedImage') || 'https://via.placeholder.com/500';
+
+const cellSize = 20;
+let rows = 0, cols = 0, cells = [];
+let painting = false;
+let isErasing = false;
+
+const rainbow = [
+ 'rgba(255,0,0,0.7)', 'rgba(255,127,0,0.7)', 'rgba(255,255,0,0.7)',
+ 'rgba(0,255,0,0.7)', 'rgba(0,0,255,0.7)', 'rgba(75,0,130,0.7)', 'rgba(148,0,211,0.7)'
+];
+const colorNames = ['빨','주','노','초','파','남','보'];
+let groupCount = 0, currentGroup = 0;
+
+function addGroup() {
+  groupCount++;
+  currentGroup = groupCount;
+  
+  const row = document.createElement('div');
+  row.className = 'groupRow';
+  row.id = 'group-' + groupCount;
+  
+  row.innerHTML = `
+    <div class="colorBox" style="background:${rainbow[(groupCount-1)%7]}"></div>
+    <span class="layerName">${colorNames[(groupCount-1)%7]} 레이어</span>
+    <div class="countInfo">
+      <span class="countNum" id="count-${groupCount}">0</span>
+      <span class="ratioNum" id="ratio-${groupCount}">0.00</span>
+    </div>
+  `;
+  
+  row.onclick = () => { 
+    currentGroup = parseInt(row.id.split('-')[1]); 
+    updateActiveUI(); 
+  };
+  
+  groupList.appendChild(row);
+  updateActiveUI();
+  updateStats();
+}
+
+document.getElementById('addGroup').onclick = addGroup;
+addGroup();
+
+function updateActiveUI(){
+  document.querySelectorAll('.groupRow').forEach(r => r.classList.remove('active'));
+  const a = document.getElementById('group-' + currentGroup);
+  if(a) a.classList.add('active');
+}
+
+function buildGrid(){
+  grid.innerHTML = '';
+  cells = [];
+  const w = img.clientWidth, h = img.clientHeight;
+  cols = Math.floor(w / cellSize);
+  rows = Math.floor(h / cellSize);
+  grid.style.width = (cols * cellSize) + 'px';
+  grid.style.height = (rows * cellSize) + 'px';
+
+  for(let r=0; r<rows; r++){
+    cells[r] = [];
+    for(let c=0; c<cols; c++){
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.style.width = cell.style.height = cellSize + 'px';
+      cell.style.left = (c * cellSize) + 'px';
+      cell.style.top = (r * cellSize) + 'px';
+      cell.dataset.row = r; cell.dataset.col = c;
+      grid.appendChild(cell);
+      cells[r][c] = cell;
+    }
+  }
+  document.getElementById('totalCount').textContent = rows * cols;
+  updateStats();
+}
+
+img.onload = buildGrid;
+window.onresize = buildGrid;
+
+function applyColor(cell) {
+  if (!currentGroup) return;
+  if (isErasing) {
+    if (cell.dataset.group == currentGroup) {
+      cell.dataset.group = "";
+      cell.style.background = "";
+    }
+  } else {
+    cell.dataset.group = currentGroup;
+    cell.style.background = rainbow[(currentGroup-1)%7];
+  }
+}
+
+grid.addEventListener('mousedown', e => {
+  const cell = e.target.closest('.cell');
+  if (cell) {
+    painting = true;
+    isErasing = (cell.dataset.group == currentGroup);
+    applyColor(cell);
+  }
+});
+
+grid.addEventListener('mousemove', e => {
+  if (painting) {
+    const cell = e.target.closest('.cell');
+    if (cell) applyColor(cell);
+  }
+});
+
+window.addEventListener('mouseup', () => {
+  if (painting) {
+    painting = false;
+    updateStats();
+  }
+});
+
+function updateStats(){
+  let selectedTotal = 0;
+  const counts = {};
+  const total = rows * cols;
+
+  document.querySelectorAll('.cell').forEach(c => {
+    const g = c.dataset.group;
+    if(g) { 
+      selectedTotal++; 
+      counts[g] = (counts[g] || 0) + 1; 
+    }
+  });
+
+  // 미선택(여백) 계산 및 비율 표시
+  const unselected = total - selectedTotal;
+  document.getElementById('unselectedCount').textContent = unselected;
+  document.getElementById('unselectedRatio').textContent = (unselected / total).toFixed(2);
+
+  // 각 레이어별 개수와 비율 표시
+  for(let i=1; i<=groupCount; i++){
+    const countSpan = document.getElementById('count-' + i);
+    const ratioSpan = document.getElementById('ratio-' + i);
+    if(countSpan && ratioSpan) {
+      const count = counts[i] || 0;
+      countSpan.textContent = count;
+      // 비율 계산 (소수점 2자리까지)
+      ratioSpan.textContent = total > 0 ? (count / total).toFixed(2) : "0.00";
+    }
+  }
+}
+</script>
+</body>
+</html>
